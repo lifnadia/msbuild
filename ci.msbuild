@@ -1,0 +1,135 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <WorkingFolder>$(MSBuildProjectDirectory)</WorkingFolder>
+    <Configuration>Release</Configuration>
+    <Platform>Any CPU</Platform>
+    <SolutionFile>CSharpCISample.sln</SolutionFile>
+    <MSBuildCommunityTasksPath>$(WorkingFolder)\.build</MSBuildCommunityTasksPath>
+    <TestResultsFolder>$(WorkingFolder)\TestResults</TestResultsFolder>
+    <ArtifactsFolder>$(WorkingFolder)\Artifacts</ArtifactsFolder>
+    <ArtifactsZipFile>$(WorkingFolder)\Artifacts.zip</ArtifactsZipFile>
+  </PropertyGroup>
+
+  <Import Project="$(MSBuildCommunityTasksPath)\MSBuild.Community.Tasks.Targets" />
+
+  <!-- 'Build' taget that will be called by jenkins-->
+  <Target Name="Build">
+    <Exec Command="nuget restore"/>
+    <MSBuild Projects="$(SolutionFile)" Targets="Rebuild"
+             Properties="Configuration=$(Configuration); Platform=$(Platform);" />
+  </Target>
+
+  <!-- 'Test' target that will be called by jenkins-->
+  <Target Name="Test">
+    <CallTarget Targets="CleanupTestResults"/>
+    <CallTarget Targets="TestMsTest"/>
+    <CallTarget Targets="TestNUnit"/>
+  </Target>
+
+  <!-- 'Pack' target that will be called by jenkins-->
+  <Target Name="Pack">
+    <CallTarget Targets="CleanupArtifacts"/>
+    <CallTarget Targets="AssembleCSharpCISampleArtifacts"/>
+    <CallTarget Targets="ZipArtifacts"/>
+  </Target>
+
+  <!-- 'Cleanup' target that will be called by jenkins-->
+  <Target Name="Cleanup">
+    <RemoveDir Directories="$(TestResultsFolder)"
+               Condition="Exists($(TestResultsFolder))" />
+    <Delete Files="$(ArtifactsZipFile)" />
+  </Target>
+
+  <!-- custom target to run the full ci locally, will not be used by Jenkins-->
+  <Target Name="CI">
+     <CallTarget Targets="Build"/>
+    <CallTarget Targets="Test"/>
+    <CallTarget Targets="Pack"/>
+    <!--<CallTarget Targets="Cleanup"/>-->
+  </Target>
+
+  <!--internal targets-->
+  <Target Name="CleanupTestResults">
+    <RemoveDir Directories="$(TestResultsFolder)"
+               Condition="Exists($(TestResultsFolder))" />
+    <MakeDir Directories="$(TestResultsFolder)"/>
+  </Target>
+
+  <Target Name="TestNUnit">
+    <PropertyGroup>
+      <Nunit3TestResults>$(TestResultsFolder)\nunit3_test_results.xml</Nunit3TestResults>
+      <JunitTestResults>$(TestResultsFolder)\junit_test_results.xml</JunitTestResults>
+      <XslFile>.build\nunit3-junit.xslt</XslFile>
+    </PropertyGroup>
+    <ItemGroup>
+      <NunitTestAssemblies Include="$(MSBuildProjectDirectory)\**\bin\$(Configuration)\*.UnitTests.dll"/>
+    </ItemGroup>
+    <NUnit3 Assemblies="@(NunitTestAssemblies)"
+            Process="Multiple"
+            TestTimeout="2000"
+            Framework="v4.0"
+            Force32Bit="false"
+            Workers="10"
+            EnableShadowCopy="true"
+            OutputXmlFile="$(Nunit3TestResults)"
+            WorkingDirectory="./"
+            ShowLabels="All"
+            NoHeader="true"
+            NoColor="true"/> 
+    <Xslt Inputs="$(Nunit3TestResults)"
+          Xsl="$(XslFile)"
+          RootTag="Root"
+          Output="$(JunitTestResults)"/>
+  </Target>
+
+  <Target Name="TestMsTest">
+    <ItemGroup>
+      <MsTestTestAssemblies Include="$(MSBuildProjectDirectory)\**\bin\$(Configuration)\*.UnitTests.dll"/>
+    </ItemGroup>
+
+    <PropertyGroup>
+      <MsTestResultTrx>$(TestResultsFolder)\mstest_test_results.trx</MsTestResultTrx>
+      <MsTestCommand>mstest @(MsTestTestAssemblies->'/testcontainer:"%(FullPath)"', ' ') /resultsfile:"$(MsTestResultTrx)"</MsTestCommand>
+    </PropertyGroup>
+    <Exec Command="$(MsTestCommand)"
+          ContinueOnError="false" />
+  </Target>
+
+  <Target Name="CleanupArtifacts">
+    <RemoveDir Directories="$(ArtifactsFolder)"
+               Condition="Exists($(ArtifactsFolder))" />
+    <Delete Files="$(ArtifactsZipFile)" />
+  </Target>
+
+  <Target Name="AssembleCSharpCISampleArtifacts">
+    <PropertyGroup>
+      <ModuleArtifactsFolder>$(ArtifactsFolder)\CSharpCISample</ModuleArtifactsFolder>
+      <ModuleDistFolder>$(ModuleArtifactsFolder)\dist</ModuleDistFolder>
+      <ModuleMetadataFolder>$(ModuleArtifactsFolder)\metadata</ModuleMetadataFolder>
+    </PropertyGroup>
+    <ItemGroup>
+      <ModuleDistFiles Include="CSharpCISample\bin\Release\*.dll;
+                                CSharpCISample\bin\Release\CSharpCISample.exe;
+                                CSharpCISample\bin\Release\CSharpCISample.exe.config"/>
+      <ModuleMetadataFiles Include="README.md"/>
+    </ItemGroup>
+
+    <Copy SourceFiles="@(ModuleDistFiles)"
+          DestinationFolder="$(ModuleDistFolder)" />
+    <Copy SourceFiles="@(ModuleMetadataFiles)"
+          DestinationFolder="$(ModuleMetadataFolder)" />
+  </Target>
+
+  <Target Name="ZipArtifacts">
+    <ItemGroup>
+      <ZipFiles Include="$(ArtifactsFolder)\**\*.*" />
+    </ItemGroup>
+
+    <Zip Files="@(ZipFiles)"
+        WorkingDirectory="$(ArtifactsFolder)"
+        ZipFileName="$(ArtifactsZipFile)"  />
+    <RemoveDir Directories="$(ArtifactsFolder)" />
+
+  </Target>
+
+</Project>

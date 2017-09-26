@@ -1,0 +1,25 @@
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+bld/
+[Bb]in/
+[Oo]bj/
+TestResults/
+# Visual Studio 2015 cache/options directory
+.vs/
+
+# Nuget
+packages/
+
+# Unit Tests
+TestResults/
+
+# Resharper
+*.DotSettings.user
+
+# artifacts
+artifacts/
+artifacts.zip
